@@ -133,6 +133,11 @@ def train(sess, env, args, actor, critic, actor_noise):
 
         if i > 10 :
             reward_reduce_mean = int(sum(reward_mean)/len(reward_mean))
+
+            if args['record_mean'] :
+                print('Terminate')
+                break
+
             if reward_reduce_mean > -300 :
                 if args['record_video'] == False :
                     print('record_video is false')
@@ -141,10 +146,6 @@ def train(sess, env, args, actor, critic, actor_noise):
                     args['record_video'] = True
                     args['render_env'] = True
                     saver.save(sess, './results/model_save/model.ckpt')
-
-                else :
-                    print('record_video is true. Terminate')
-                    break
 
 
 def main(args):
