@@ -25,7 +25,7 @@ git clone https://github.com/jinprelude/reinforcement_learning
 Go to the DDPG directory :
 ```shell
 cd DDPG/Pendulum
-"""
+```
 
 ### Training
 - You should make directory 'results' before training :
