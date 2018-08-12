@@ -3,6 +3,7 @@
 	<img src=./readme/pendulum.gif width="600px">
 </div>
 This is a simple implementation of DDPG algorithm.
+
 - DDPG paper : https://arxiv.org/abs/1509.02971
 - reference : https://github.com/pemami4911/deep-rl/tree/master/ddpg
 
@@ -35,7 +36,7 @@ python3 main.py
 training will terminate if the mean value of the last episodes' rewards is higher than -300. Rendered video will be shown once before the termination.
 
 ### Testing
--After training the model, run model_test.py to see it works.
+- After training the model, run model_test.py to see it works.
 ```shell
 python3 model_test.py
 ```
