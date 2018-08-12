@@ -13,19 +13,19 @@ class ActorNetwork(object):
         self.tau = tau
         self.batch_size = batch_size
 
-        # Actor Network를 생성합니다.
+        # Actor Network를 생성.
         self.inputs, self.out, self.scaled_out = self.create_actor_network()
 
         # It stores the parameters the network has.
         #
         self.network_params = tf.trainable_variables()
 
-        # Target Actor network를 생성합니다.
+        # Target Actor network를 생성.
         self.target_inputs, self.target_out, self.target_scaled_out = self.create_actor_network()
 
         # It stores the parameters the target network has.
-        # We should slice the tf.trainable_variables() because unlike
-        # network_params target_actor_network is has made above.
+        # tf.trainable_variables 에 network_params 다음 target_network_params가 바로 이어져 있어서
+        # 슬라이싱을 해줌
         self.target_network_params = tf.trainable_variables()[
                                      len(self.network_params):]
 
@@ -38,7 +38,8 @@ class ActorNetwork(object):
             [self.target_network_params[i].assign(tf.multiply(self.network_params[i], self.tau) +
                                                   tf.multiply(self.target_network_params[i], 1. - self.tau)) for i in range(len(self.target_network_params))]
 
-        # critic network에게 제공받을 placeholder입니다. action의 gradient입니다.
+        # critic network에게 제공받을 placeholder
+        #  action의 gradient임.
         self.action_gradient = tf.placeholder(tf.float32, [None, self.a_dim])
 
         # Combine the gradients here
@@ -84,7 +85,7 @@ class ActorNetwork(object):
         return inputs, out, scaled_out
 
 
-    # action의 gradient 와 inputs(state)를 입력으로 받아 self.optimize를 돌려서 학습합니다.
+    # action의 gradient 와 inputs(state)를 입력으로 받아 self.optimize를 돌려서 학습한다.
     # Train by running self.optimize which gets the gradient of the action and inputs(state) as a inputs
     def train(self, inputs, a_gradient):
         self.sess.run(self.optimize, feed_dict={
@@ -92,7 +93,7 @@ class ActorNetwork(object):
             self.action_gradient: a_gradient
         })
 
-    # input을 받아 예측한 행동을 반환합니다.
+    # input을 받아 예측한 행동을 반환
     # Choose and return the action of the actor network
     # by getting input(state) as a input
     def predict(self, inputs):
@@ -100,7 +101,7 @@ class ActorNetwork(object):
             self.inputs: inputs
         })
 
-    # target network의 행동 예측값을 반환합니다.
+    # target network의 행동 예측값을 반환
     # Choose and return the action of the target actor network
     # by getting input(state) as a input
     def predict_target(self, inputs):
@@ -108,13 +109,11 @@ class ActorNetwork(object):
             self.target_inputs: inputs
         })
 
-    # target network를 self.update_target_network_params를 이용해 업데이트합니다.
+    # target network를 self.update_target_network_params를 이용해 업데이트
     # Update the target network by using self.update_target_network_params
     def update_target_network(self):
         self.sess.run(self.update_target_network_params)
 
-    # 정채불명
-    # Unconfirmed
     def get_num_trainable_vars(self):
         return self.num_trainable_vars
 
@@ -129,12 +128,12 @@ class CriticNetwork(object):
         self.tau = tau
         self.gamma = gamma
 
-        # critic network를 생성합니다.
+        # critic network 생성
         self.inputs, self.action, self.out = self.create_critic_network()
 
         self.network_params = tf.trainable_variables()[num_actor_vars:]
 
-        # Target critic network를 생성합니다.
+        # Target critic network 생성
         self.target_inputs, self.target_action, self.target_out = self.create_critic_network()
 
         self.target_network_params = tf.trainable_variables()[(len(self.network_params) + num_actor_vars):]
@@ -146,21 +145,20 @@ class CriticNetwork(object):
                                                   + tf.multiply(self.target_network_params[i], 1. - self.tau))
              for i in range(len(self.target_network_params))]
 
-        #target critic network에 y_i 값으로 제공될 placeholder입니다.
+        #target critic network에 y_i 값으로 제공될 placeholder
         self.predicted_q_value = tf.placeholder(tf.float32, [None, 1])
 
-        # loss를 정의하고 최적화합니다.
-        #self.loss = tflearn.mean_square(self.predicted_q_value, self.out)
+        # loss 정의, 최적화
         self.loss = tf.reduce_mean(tf.square(self.predicted_q_value - self.out))
         self.optimize = tf.train.AdamOptimizer(
             self.learning_rate).minimize(self.loss)
 
-        # action에 대해서 신경망의 gradient를 구합니다.
-        # 미니배치의 각 critic 출력의 (각 액션에 의해서 구해진)기울기를 합산한다.
-        # 모든 출력은 자신이 나눠진 action을 제외한 모든 action에 대해 독립적이다.
+        # action에 대해서 신경망의 gradient를 구함
+        # 미니배치의 각 critic 출력의 (각 액션에 의해서 구해진)기울기를 합산
+        # 모든 출력은 자신이 나눠진 action을 제외한 모든 action에 대해 독립적임
         self.action_grads = tf.gradients(self.out, self.action)
 
-    # Critic network를 정의합니다.
+    # Critic network 정의
     # Define the critic network
     def create_critic_network(self):
         inputs = tf.placeholder(shape=[None, self.s_dim], dtype=tf.float32)
