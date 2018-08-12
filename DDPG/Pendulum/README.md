@@ -3,8 +3,8 @@
 	<img src=./readme/pendulum.gif width="600px">
 </div>
 This is a simple implementation of DDPG algorithm.
--DDPG paper : https://arxiv.org/abs/1509.02971
--reference : https://github.com/pemami4911/deep-rl/tree/master/ddpg
+- DDPG paper : https://arxiv.org/abs/1509.02971
+- reference : https://github.com/pemami4911/deep-rl/tree/master/ddpg
 
 ## Requirements
 - To run this project, you need gym, numpy, absl, and tensorflow.
