@@ -14,14 +14,16 @@ class ActorNetwork(object):
         self.batch_size = batch_size
 
         # Actor Network를 생성.
-        self.inputs, self.out, self.scaled_out = self.create_actor_network()
+        with tf.variable_scope('actor_network') :
+            self.inputs, self.out, self.scaled_out = self.create_actor_network()
 
         # It stores the parameters the network has.
         #
         self.network_params = tf.trainable_variables()
 
         # Target Actor network를 생성.
-        self.target_inputs, self.target_out, self.target_scaled_out = self.create_actor_network()
+        with tf.variable_scope('target_actor_network') :
+            self.target_inputs, self.target_out, self.target_scaled_out = self.create_actor_network()
 
         # It stores the parameters the target network has.
         # tf.trainable_variables 에 network_params 다음 target_network_params가 바로 이어져 있어서
@@ -64,20 +66,20 @@ class ActorNetwork(object):
     # Define actor neural network
     def create_actor_network(self):
 
-        inputs = tf.placeholder(shape=[None, self.s_dim], dtype=tf.float32)
-        w1 = tf.Variable(tf.random_normal(shape=[self.s_dim, 10], mean=0., stddev=0.1), name='w1')
-        l1 = tf.matmul(inputs, w1)
+        inputs = tf.placeholder(name='actor_input', shape=[None, self.s_dim], dtype=tf.float32)
+        w1 = tf.get_variable(name='actor_w1', shape=[self.s_dim, 10], initializer=tf.random_uniform_initializer(-0.3, 0.3))
+        l1 = tf.matmul(inputs, w1, name='actor_layer1')
         l1 = tf.nn.relu(l1)
 
-        w2 = tf.Variable(tf.random_normal(shape=[10, 10], mean=0., stddev=0.1), name='w2')
+        w2 = tf.get_variable(name='actor_w2', shape=[10, 10], initializer=tf.random_uniform_initializer(-0.3, 0.3))
         l2 = tf.matmul(l1, w2)
         l2 = tf.nn.relu(l2)
 
-        w3 = tf.Variable(tf.random_normal(shape=[10, 6], mean=0., stddev=0.1), name='w3')
+        w3 = tf.get_variable(name='actor_w3', shape=[10, 6], initializer=tf.random_uniform_initializer(-0.3, 0.3))
         l3 = tf.matmul(l2, w3)
         l3 = tf.nn.relu(l3)
 
-        w4 = tf.Variable(tf.random_normal(shape=[6, self.a_dim], mean=0., stddev=0.1), name='w4')
+        w4 = tf.get_variable(name='actor_w4', shape=[6, self.a_dim], initializer=tf.random_uniform_initializer(-0.3, 0.3))
         l4 = tf.matmul(l3, w4)
         out = tf.nn.tanh(l4)
         # Scale output to -action_bound to action_bound
@@ -129,12 +131,14 @@ class CriticNetwork(object):
         self.gamma = gamma
 
         # critic network 생성
-        self.inputs, self.action, self.out = self.create_critic_network()
+        with tf.variable_scope('critic_network') :
+            self.inputs, self.action, self.out = self.create_critic_network()
 
         self.network_params = tf.trainable_variables()[num_actor_vars:]
 
         # Target critic network 생성
-        self.target_inputs, self.target_action, self.target_out = self.create_critic_network()
+        with tf.variable_scope('target_critic_network') :
+            self.target_inputs, self.target_action, self.target_out = self.create_critic_network()
 
         self.target_network_params = tf.trainable_variables()[(len(self.network_params) + num_actor_vars):]
 
@@ -164,17 +168,21 @@ class CriticNetwork(object):
         inputs = tf.placeholder(shape=[None, self.s_dim], dtype=tf.float32)
         action = tf.placeholder(shape=[None, self.a_dim], dtype=tf.float32)
 
-        w1 = tf.Variable(tf.random_uniform(shape=[self.s_dim, 400], maxval=0.3, minval=-0.3), dtype=tf.float32)
+
+        w1 = tf.get_variable(name='critic_w1', shape=[self.s_dim, 400], initializer=tf.random_uniform_initializer(-0.3, 0.3))
         l1 = tf.matmul(inputs, w1)
         l1 = tf.nn.relu(l1)
-        w2 = tf.Variable(tf.random_uniform(shape=[400, 300], maxval=0.3, minval=-0.3), dtype=tf.float32)
 
+
+        w2 = tf.get_variable(name='criti_w2', shape=[400, 300], initializer=tf.random_uniform_initializer(-0.3, 0.3))
         # action에 가중치를 곱해서 critic network에 더해준다. 경험적으로 좋은 결과를 이끌어냈다고 함.
 
-        w2_a = tf.Variable(tf.random_uniform(shape=[self.a_dim, 300],  maxval=0.3, minval=-0.3), dtype=tf.float32)
+
+        w2_a  = tf.get_variable(name='criticc_w2_action', shape=[self.a_dim, 300], initializer=tf.random_uniform_initializer(-0.3, 0.3))
         l2 = tf.nn.relu(tf.matmul(l1, w2) + tf.matmul(action, w2_a))
 
-        w3 = tf.Variable(tf.random_uniform(shape=[300, 1], maxval=0.03, minval=-0.03), dtype=tf.float32)
+
+        w3 = tf.get_variable(name='critic_w3', shape=[300, 1], initializer=tf.random_uniform_initializer(-0.3, 0.3))
         out = tf.matmul(l2, w3)
 
 
