@@ -8,7 +8,6 @@ import gym
 from collections import deque
 import argparse
 import pprint as pp
-from gym import wrappers
 
 
 from agent import ActorNetwork, CriticNetwork
@@ -45,8 +44,8 @@ def train(sess, env, args, actor, critic, actor_noise):
     writer = tf.summary.FileWriter(args['summary_dir'], sess.graph)
 
     # Initialize target network weights
-    actor.update_target_network()
-    critic.update_target_network()
+    #actor.update_target_network()
+    #critic.update_target_network()
 
     saver = tf.train.Saver()
 
@@ -66,8 +65,6 @@ def train(sess, env, args, actor, critic, actor_noise):
 
             if args['render_env']:
                 env.render()
-            if args['record_video'] :
-                wrappers.Monitor(env, './results/video/', force=True)
 
 
             # uo-process 노이즈 추가
@@ -134,16 +131,11 @@ def train(sess, env, args, actor, critic, actor_noise):
         if i > 10 :
             reward_reduce_mean = int(sum(reward_mean)/len(reward_mean))
 
-            if args['record_mean'] :
+            if args['render_env'] :
                 print('Terminate')
                 break
 
             if reward_reduce_mean > -300 :
-                if args['record_video'] == False :
-                    print('record_video is false')
-                    #parser.set_defaults(render_env = True)
-                    #parser.set_defaults(record_video=True)
-                    args['record_video'] = True
                     args['render_env'] = True
                     saver.save(sess, './results/model_save/model.ckpt')
 
@@ -199,7 +191,6 @@ if __name__ == '__main__':
     parser.add_argument('--max-episode-len', help='max length of 1 episode', default=1000)
     parser.add_argument('--render-env', help='render the gym env', action='store_true')
     parser.add_argument('--summary-dir', help='directory for storing tensorboard info', default='./results/tf_ddpg')
-    parser.add_argument('--record-video', default=False)
 
     parser.set_defaults(render_env=False)
 
