@@ -29,7 +29,7 @@ class ActorNetwork(object):
                                      len(self.network_params):]
 
 
-
+        # I want green!
         self.update_target_network_params = \
             [self.target_network_params[i].assign(tf.multiply(self.network_params[i], self.tau) +
                                                   tf.multiply(self.target_network_params[i], 1. - self.tau)) for i in range(len(self.target_network_params))]
