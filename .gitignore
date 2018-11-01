@@ -110,3 +110,4 @@ venv.bak/
 ./DDPG/Pendulum/results/
 ./pytorch_rl/kuka/save_ddpg/
 ./pytorch_rl/pendulum/save/
+./pytorch_rl/acrobot/save
