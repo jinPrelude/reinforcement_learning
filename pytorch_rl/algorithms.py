@@ -168,7 +168,6 @@ class DDPG(object) :
         self.soft_update(self.target_actor, self.actor, self.args.tau)
         self.soft_update(self.target_critic, self.critic, self.args.tau)
 
-
     def pendulum_train_loop(self, env):
 
         if self.args.continue_training :
@@ -296,6 +295,33 @@ class DQN(object):
         self.memory[index, :] = transition
         self.memory_counter += 1
 
+    def sample_batch_memory(self):
+        sample_index = np.random.choice(self.args.memory_capacity, self.args.batch_size)
+        b_memory = self.memory[sample_index, :]
+        b_s = torch.FloatTensor(b_memory[:, :self.state_space])
+        b_a = torch.LongTensor(b_memory[:, self.state_space:self.state_space + self.action_space].astype(int))
+        b_r = torch.FloatTensor(
+            b_memory[:, self.state_space + self.action_space:self.state_space + self.action_space + 1])
+        b_s_ = torch.FloatTensor(b_memory[:, -self.state_space:])
+        return b_s, b_a, b_r, b_s_
+
+    def continue_training(self):
+        model_directory = self.args.save_directory + '%d/model_%d' % (self.args.saved_iter, self.args.saved_iter)
+        memory_directory = self.args.save_directory + '%d/memory_%d.npy' % (self.args.saved_iter, self.args.saved_iter)
+
+        # load trained model
+        self.eval_net.load_state_dict(torch.load(model_directory))
+        self.target_net.load_state_dict(torch.load(model_directory))
+
+        # load experience replay
+        self.memory = np.load(memory_directory)
+        self.memory_counter = len(self.memory)
+
+        # reset episode start position
+        start = self.args.saved_iter
+
+        self.epsilon = 0.001
+
     def learn(self):
         # target parameter update
         if self.learn_step_counter % self.args.target_replace_iter == 0:
@@ -303,12 +329,7 @@ class DQN(object):
         self.learn_step_counter += 1
 
         # sample batch transitions
-        sample_index = np.random.choice(self.args.memory_capacity, self.args.batch_size)
-        b_memory = self.memory[sample_index, :]
-        b_s = torch.FloatTensor(b_memory[:, :self.state_space])
-        b_a = torch.LongTensor(b_memory[:, self.state_space:self.state_space+1].astype(int))
-        b_r = torch.FloatTensor(b_memory[:, self.state_space+1:self.state_space+2])
-        b_s_ = torch.FloatTensor(b_memory[:, -self.state_space:])
+        b_s, b_a, b_r, b_s_ = self.sample_batch_memory()
 
         # q_eval w.r.t the action in experience
         q_eval = self.eval_net(b_s)
@@ -325,12 +346,15 @@ class DQN(object):
         self.optimizer.step()
 
     def cartpole_train_loop(self, env):
+
+        if self.args.continue_training :
+            self.continue_training()
+
         print('\nCollecting experience...')
         for i_episode in range(self.args.num_episode):
 
             if self.memory_counter > self.args.memory_capacity: # decay epsilon at every episode
                 self.epsilon *= self.args.epsilon_decay
-                print('epsilon : ', self.epsilon, '     episode : ', i_episode)
 
             s = env.reset()
             ep_r = 0
@@ -355,9 +379,16 @@ class DQN(object):
                     if done:
                         if i_episode % self.args.ep_print_iter == 0:
                             print('Ep: ', i_episode,
-                                  '| Ep_r: ', round(ep_r, 2))
+                                  '| Ep_r: ', round(ep_r, 2), '| epsilon : ', self.epsilon)
                             if i_episode % self.args.model_save_iter == 0:
-                                torch.save(self.eval_net.state_dict(), './save_cat/model_%d' % (i_episode))
+
+                                directory = self.args.save_directory + '%d/' % i_episode
+
+                                if not os.path.exists(directory):
+                                    os.makedirs(directory)
+
+                                torch.save(self.eval_net.state_dict(), directory + 'model_%d' % (i_episode))
+                                np.save(directory + 'memory_%d' % (i_episode), self.memory)
 
                 if done:
                     break
@@ -368,14 +399,7 @@ class DQN(object):
         start = 0
 
         if self.args.continue_training :
-            model_directory = './save/%d/model_%d'%(self.args.saved_iter, self.args.saved_iter)
-            memory_directory = './save/%d/memory_%d.npy'%(self.args.saved_iter, self.args.saved_iter)
-            self.eval_net.load_state_dict(torch.load(model_directory))
-            self.target_net.load_state_dict(torch.load(model_directory))
-            self.memory = np.load(memory_directory)
-            self.memory_counter = len(self.memory)
-            start = self.args.saved_iter
-            self.epsilon = 0.001
+            self.continue_training()
 
         print('\nCollecting experience...')
         for i_episode in range(start, self.args.num_episode):
@@ -384,7 +408,6 @@ class DQN(object):
 
             if self.memory_counter > self.args.memory_capacity: # decay epsilon at every episode
                 self.epsilon *= self.args.epsilon_decay
-            print('epsilon : ', self.epsilon, '     episode : ', i_episode)
 
             while True:
 
@@ -392,12 +415,6 @@ class DQN(object):
 
                 # take action
                 s_, r, done, info = env.step(a)
-
-                # modify the reward
-                #x, x_dot, theta, theta_dot = s_
-                #r1 = (env.env.x_threshold - abs(x)) / env.env.x_threshold - 0.8
-                #r2 = (env.env.theta_threshold_radians - abs(theta)) / env.env.theta_threshold_radians - 0.5
-                #r = r1 + r2
 
                 self.store_transition(s, a, r, s_)
 
@@ -407,15 +424,16 @@ class DQN(object):
                     if done:
                         if i_episode % self.args.ep_print_iter == 0:
                             print('Ep: ', i_episode,
-                                  '| Ep_r: ', round(ep_r, 2))
+                                  '| Ep_r: ', round(ep_r, 2), '| epsilon : ', self.epsilon)
                             if i_episode % self.args.model_save_iter == 0:
-                                directory = './save/%d/'%i_episode
+
+                                directory = self.args.save_directory + '%d/' % i_episode
 
                                 if not os.path.exists(directory):
                                     os.makedirs(directory)
 
-                                torch.save(self.eval_net.state_dict(), './save/%d/model_%d' % (i_episode, i_episode))
-                                np.save('./save/%d/memory_%d'%(i_episode, i_episode), self.memory)
+                                torch.save(self.eval_net.state_dict(), directory + 'model_%d' % (i_episode))
+                                np.save(directory + 'memory_%d' % (i_episode), self.memory)
 
                 if done:
                     break
