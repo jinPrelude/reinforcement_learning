@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
+from pytorch_rl import ounoise
 
 class Net(nn.Module):
     def __init__(self, state_space, action_space):
@@ -83,6 +84,8 @@ class DDPG(object) :
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=self.args.lr)
         self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=self.args.lr)
         self.loss_func = nn.MSELoss()
+        self.OUNoise = ounoise.OUNoise(action_space)
+
 
     def soft_update(self, target, source, tau):
         for target_param, param in zip(target.parameters(), source.parameters()):
@@ -96,7 +99,8 @@ class DDPG(object) :
             actions_value = self.actor.forward(x)
             action = actions_value.detach().numpy()[0]  # make action from tensor to ndarray
         else:  # random
-            action = np.random.uniform(-1., 1., self.action_space)
+            #action = np.random.uniform(-1., 1., self.action_space)
+            action = self.OUNoise.noise()
         return action
 
     def store_transition(self, s, a, r, s_):
@@ -178,7 +182,7 @@ class DDPG(object) :
 
             if self.memory_counter > self.args.memory_capacity:  # decay epsilon at every episode
                 self.epsilon *= self.args.epsilon_decay
-
+            self.OUNoise.reset()
             s = env.reset()
             ep_r = 0
             while True:
@@ -193,6 +197,52 @@ class DDPG(object) :
                 ep_r += r
                 if self.memory_counter > self.args.memory_capacity:
                     self.learn()
+                    if done:
+                        if i_episode % self.args.ep_print_iter == 0:
+                            print('Ep: ', i_episode,
+                                  '| Ep_r: ', round(ep_r, 2), '| epsilon : ', self.epsilon)
+                            if i_episode % self.args.model_save_iter == 0:
+
+                                directory = self.args.save_directory + '%d/' % i_episode
+
+                                if not os.path.exists(directory):
+                                    os.makedirs(directory)
+
+                                torch.save(self.actor.state_dict(), directory + 'model_%d' % (i_episode))
+                                np.save(directory + 'memory_%d' % (i_episode), self.memory)
+
+                if done:
+                    print('ep_r : ', ep_r)
+                    print('')
+                    break
+                s = s_
+
+    def mountaincar_train_loop(self, env):
+
+        if self.args.continue_training :
+            self.continue_training()
+
+        print('\nCollecting experience...')
+        for i_episode in range(self.args.num_episode):
+
+            if self.memory_counter > self.args.memory_capacity:  # decay epsilon at every episode
+                self.epsilon *= self.args.epsilon_decay
+
+            s = env.reset()
+            ep_r = 0
+            self.OUNoise.reset()
+            while True:
+                if self.args.render :
+                    env.render()
+                a = self.choose_action(s)
+                # take action
+                s_, r, done, info = env.step(a)
+                self.store_transition(s, a, r, s_)
+
+                ep_r += r
+                if self.memory_counter > self.args.memory_capacity:
+                    self.learn()
+                    #env.render()
                     if done:
                         if i_episode % self.args.ep_print_iter == 0:
                             print('Ep: ', i_episode,
