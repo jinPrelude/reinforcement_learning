@@ -36,10 +36,10 @@ class DDPG_actor(nn.Module):
         self.out.weight.data.normal_(0, 0.1)   # initialization
 
     def forward(self, x):
-        x = F.tanh(self.fc1(x))
-        x = F.tanh(self.fc2(x))
-        x = F.tanh(self.fc3(x))
-        actions_value = F.tanh(self.out(x))
+        x = torch.tanh(self.fc1(x))
+        x = torch.tanh(self.fc2(x))
+        x = torch.tanh(self.fc3(x))
+        actions_value = torch.tanh(self.out(x))
         return actions_value
 
 class DDPG_critic(nn.Module) :
@@ -79,7 +79,7 @@ class DDPG(object) :
 
         self.learn_step_counter = 0  # for target updating
         self.memory_counter = 0  # for storing memory
-        self.memory = np.zeros((self.args.memory_capacity, self.state_space * 2 + 2))  # initialize memory
+        self.memory = np.zeros((self.args.memory_capacity, self.state_space * 2 + self.action_space + 1))  # initialize memory
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=self.args.lr)
         self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=self.args.lr)
         self.loss_func = nn.MSELoss()
@@ -91,21 +91,47 @@ class DDPG(object) :
 
     def choose_action(self, x):
         x = torch.unsqueeze(torch.FloatTensor(x), 0)
-        # a = torch.unsqueeze(torch.FloatTensor(a), 0)
-        # input only one sample
+
         if np.random.uniform() > self.epsilon:  # greedy
             actions_value = self.actor.forward(x)
-            action = actions_value.detach().numpy()[0]  # if ENV_A_SHAPE == 0 else action.reshape(ENV_A_SHAPE)  # return the argmax index
+            action = actions_value.detach().numpy()[0]  # make action from tensor to ndarray
         else:  # random
-            action = np.random.rand(self.action_space)
+            action = np.random.uniform(-1., 1., self.action_space)
         return action
 
     def store_transition(self, s, a, r, s_):
-        transition = np.hstack((s, [a, r], s_))
+        transition = np.hstack((s, a, r, s_))
         # replace the old memory with new memory
         index = self.memory_counter % self.args.memory_capacity
         self.memory[index, :] = transition
         self.memory_counter += 1
+
+    def sample_batch_memory(self):
+        sample_index = np.random.choice(self.args.memory_capacity, self.args.batch_size)
+        b_memory = self.memory[sample_index, :]
+        b_s = torch.FloatTensor(b_memory[:, :self.state_space])
+        b_a = torch.LongTensor(b_memory[:, self.state_space:self.state_space + self.action_space].astype(int))
+        b_r = torch.FloatTensor(
+            b_memory[:, self.state_space + self.action_space:self.state_space + self.action_space + 1])
+        b_s_ = torch.FloatTensor(b_memory[:, -self.state_space:])
+        return b_s, b_a, b_r, b_s_
+
+    def continue_training(self):
+        model_directory = self.args.save_directory + '%d/model_%d' % (self.args.saved_iter, self.args.saved_iter)
+        memory_directory = self.args.save_directory + '%d/memory_%d.npy' % (self.args.saved_iter, self.args.saved_iter)
+
+        # load trained model
+        self.actor.load_state_dict(torch.load(model_directory))
+        self.target_actor.load_state_dict(torch.load(model_directory))
+
+        # load experience replay
+        self.memory = np.load(memory_directory)
+        self.memory_counter = len(self.memory)
+
+        # reset episode start position
+        start = self.args.saved_iter
+
+        self.epsilon = 0.001
 
     def learn(self):
         # target parameter update
@@ -114,60 +140,54 @@ class DDPG(object) :
         self.learn_step_counter += 1
 
         # sample batch transitions
-        sample_index = np.random.choice(self.args.memory_capacity, self.args.batch_size)
-        b_memory = self.memory[sample_index, :]
-        b_s = torch.FloatTensor(b_memory[:, :self.state_space])
-        b_a = torch.LongTensor(b_memory[:, self.state_space:self.state_space + 1].astype(int))
-        b_r = torch.FloatTensor(b_memory[:, self.state_space + 1:self.state_space + 2])
-        b_s_ = torch.FloatTensor(b_memory[:, -self.state_space:])
+        b_s, b_a, b_r, b_s_ = self.sample_batch_memory()
 
+        # critic update
         b_target_action = self.target_actor(b_s_)
-        #y_critic_input = np.concatenate((b_s_, b_target_action), axis=1) # 디버깅으로 차원 확인
         y_critic_input = torch.cat((b_s_, b_target_action), dim=1)
         y = b_r + self.args.gamma * self.target_critic(y_critic_input)
-        critic_input = np.concatenate((b_s, b_a), axis=1)
-        #critic_input = torch.cat((b_s, b_a), dim=1)
-        critic_input = torch.unsqueeze(torch.FloatTensor(critic_input), 0)
-        q = self.critic(critic_input)
+
+        q_input = np.concatenate((b_s, b_a), axis=1)
+        q_input = torch.unsqueeze(torch.FloatTensor(q_input), 0)
+        q = self.critic(q_input)
 
         q_loss = self.loss_func(y, q)
         self.critic_optim.zero_grad()
         q_loss.backward()
         self.critic_optim.step()
 
+        # actor update
         actor_q_input = torch.cat((b_s, self.actor(b_s)), dim=1)
         actor_loss = -self.critic(actor_q_input).mean()
+
         self.actor_optim.zero_grad()
         actor_loss.backward()
         self.actor_optim.step()
 
+        # target network soft_update
         self.soft_update(self.target_actor, self.actor, self.args.tau)
         self.soft_update(self.target_critic, self.critic, self.args.tau)
 
 
     def pendulum_train_loop(self, env):
 
+        if self.args.continue_training :
+            self.continue_training()
+
         print('\nCollecting experience...')
         for i_episode in range(self.args.num_episode):
 
             if self.memory_counter > self.args.memory_capacity:  # decay epsilon at every episode
                 self.epsilon *= self.args.epsilon_decay
-                print('epsilon : ', self.epsilon)
 
             s = env.reset()
             ep_r = 0
             while True:
-                env.render()
+                #env.render()
                 a = self.choose_action(s)
                 a *= 2.0
                 # take action
                 s_, r, done, info = env.step(a)
-
-                # modify the reward
-                # x, x_dot, theta, theta_dot = s_
-                # r1 = (env.env.x_threshold - abs(x)) / env.env.x_threshold - 0.8
-                # r2 = (env.env.theta_threshold_radians - abs(theta)) / env.env.theta_threshold_radians - 0.5
-                # r = r1 + r2
 
                 self.store_transition(s, a, r, s_)
 
@@ -177,14 +197,67 @@ class DDPG(object) :
                     if done:
                         if i_episode % self.args.ep_print_iter == 0:
                             print('Ep: ', i_episode,
-                                  '| Ep_r: ', round(ep_r, 2))
+                                  '| Ep_r: ', round(ep_r, 2), '| epsilon : ', self.epsilon)
                             if i_episode % self.args.model_save_iter == 0:
-                                torch.save(self.actor.state_dict(), './save_pendulum/model_%d' % (i_episode))
+
+                                directory = self.args.save_directory + '%d/' % i_episode
+
+                                if not os.path.exists(directory):
+                                    os.makedirs(directory)
+
+                                torch.save(self.actor.state_dict(), directory + 'model_%d' % (i_episode))
+                                np.save(directory + 'memory_%d' % (i_episode), self.memory)
+
+                if done:
+                    print('ep_r : ', ep_r)
+                    print('')
+                    break
+                s = s_
+
+    def kuka_train_loop(self, env):
+
+        start = 0
+
+        if self.args.continue_training :
+            self.continue_training()
+
+        print('\nCollecting experience...')
+        for i_episode in range(start, self.args.num_episode):
+            s = env.reset()
+            ep_r = 0
+
+            if self.memory_counter > self.args.memory_capacity: # decay epsilon at every episode
+                self.epsilon *= self.args.epsilon_decay
+
+            while True:
+
+                a = self.choose_action(s)
+
+                # take action
+                s_, r, done, info = env.step(a)
+
+                self.store_transition(s, a, r, s_)
+
+                ep_r += r
+                if self.memory_counter > self.args.memory_capacity:
+                    self.learn()
+                    if done:
+                        if i_episode % self.args.ep_print_iter == 0:
+                            print('Ep: ', i_episode,
+                                  '| Ep_r: ', round(ep_r, 2), '| epsilon : ', round(self.epsilon, 2))
+
+                            if i_episode % self.args.model_save_iter == 0:
+                                directory = self.args.save_directory + '%d/'%i_episode
+
+                                if not os.path.exists(directory):
+                                    os.makedirs(directory)
+
+                                torch.save(self.actor.state_dict(), directory + 'model_%d' % (i_episode))
+                                np.save(directory + 'memory_%d'%(i_episode), self.memory)
 
                 if done:
                     break
                 s = s_
-
 
 class DQN(object):
     def __init__(self, args, state_space, action_space):
@@ -257,7 +330,7 @@ class DQN(object):
 
             if self.memory_counter > self.args.memory_capacity: # decay epsilon at every episode
                 self.epsilon *= self.args.epsilon_decay
-                print('epsilon : ', self.epsilon)
+                print('epsilon : ', self.epsilon, '     episode : ', i_episode)
 
             s = env.reset()
             ep_r = 0
@@ -311,7 +384,7 @@ class DQN(object):
 
             if self.memory_counter > self.args.memory_capacity: # decay epsilon at every episode
                 self.epsilon *= self.args.epsilon_decay
-            print('epsilon : ', self.epsilon)
+            print('epsilon : ', self.epsilon, '     episode : ', i_episode)
 
             while True:
 
