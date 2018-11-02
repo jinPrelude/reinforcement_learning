@@ -90,6 +90,25 @@ class DDPG_HER(object) :
         self.loss_func = nn.MSELoss()
         self.OUNoise = ounoise.OUNoise(action_space, mu=0., sigma=2.0)
 
+    # 저장된 메모리와 actor 네트워크를 불러와 다시 학습을 시킬 때 사용하는 함수인데.. critic 저장기능을 빼먹었군요..
+    # 시간날 때 채워넣어야겠습니다ㅎ
+    def continue_training(self):
+        model_directory = self.args.save_directory + '%d/model_%d' % (self.args.saved_iter, self.args.saved_iter)
+        memory_directory = self.args.save_directory + '%d/memory_%d.npy' % (self.args.saved_iter, self.args.saved_iter)
+
+        # load trained model
+        self.actor.load_state_dict(torch.load(model_directory))
+        self.target_actor.load_state_dict(torch.load(model_directory))
+
+        # load experience replay
+        self.memory = np.load(memory_directory)
+        self.memory_counter = len(self.memory)
+
+        # reset episode start position
+        start = self.args.saved_iter
+
+        self.epsilon = 0.001
+        return start
 
     def soft_update(self, target, source, tau):
         for target_param, param in zip(target.parameters(), source.parameters()):
