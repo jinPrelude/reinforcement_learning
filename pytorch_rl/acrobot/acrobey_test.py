@@ -10,7 +10,7 @@ def main(args) :
     action_space = env.action_space.shape[0]
     ddpg = DDPG(args, state_space, action_space)
 
-    ddpg.actor.load_state_dict(torch.load('./save/100/model_100'))
+    ddpg.actor.load_state_dict(torch.load('./save/500/model_500'))
     ddpg.epsilon = 0.00001
     for i_episode in range(ddpg.args.num_episode):
 

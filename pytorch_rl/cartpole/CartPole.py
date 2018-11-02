@@ -1,7 +1,7 @@
 
 import gym
 import argparse
-from pytorch_rl.algorithms import DQN
+from pytorch_rl.cartpole.algorithm import DQN
 
 def main(args) :
     env = gym.make('CartPole-v0')

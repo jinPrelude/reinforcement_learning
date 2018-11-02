@@ -1,7 +1,7 @@
 
 import gym
 import argparse
-from pytorch_rl.algorithms import DDPG
+from pytorch_rl.acrobot.algorithm import DDPG
 
 def main(args) :
     env = gym.make('BipedalWalker-v2')

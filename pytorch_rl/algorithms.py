@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
+
 from pytorch_rl import ounoise
 
 class Net(nn.Module):
@@ -217,6 +218,7 @@ class DDPG(object) :
                     print('')
                     break
                 s = s_
+
 
     def simple_one_to_one(self, env):
 

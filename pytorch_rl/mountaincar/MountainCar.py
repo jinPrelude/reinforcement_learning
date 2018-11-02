@@ -1,7 +1,7 @@
 
 import gym
 import argparse
-from pytorch_rl.algorithms import DDPG
+from pytorch_rl.mountaincar.algorithm import DDPG
 
 def main(args) :
     env = gym.make('MountainCarContinuous-v0')
@@ -9,7 +9,7 @@ def main(args) :
     action_space = env.action_space.shape[0]
     ddpg = DDPG(args, state_space, action_space)
 
-    ddpg.mountaincar_train_loop(env)
+    ddpg.simple_one_to_one(env)
 
 
 if __name__ == '__main__' :
@@ -20,14 +20,14 @@ if __name__ == '__main__' :
     parse.add_argument('--epsilon_decay', default=0.99)
     parse.add_argument('--gamma', default=0.99)
     parse.add_argument('--target_replace_iter', default=100)
-    parse.add_argument('--memory_capacity', default=20000)
+    parse.add_argument('--memory_capacity', default=3000)
     parse.add_argument('--tau', default=0.001)
 
     parse.add_argument('--render', default=False)
     parse.add_argument('--num_episode', default=10000)
     parse.add_argument('--episode_len', default=400)
     parse.add_argument('--ep_print_iter', default=1, help='print episode_reward at every %d step')
-    parse.add_argument('--model_save_iter', default=20, help='save model at every %d step')
+    parse.add_argument('--model_save_iter', default=50, help='save model at every %d step')
     parse.add_argument('--continue_training', default=False,
                        help='Will you continue training using your saved model & memory')
     parse.add_argument('--saved_iter', default=5, help='last saved model iteration number. ')

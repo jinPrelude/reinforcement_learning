@@ -1,19 +1,21 @@
 import pybullet as p
-from pybullet_envs.bullet import kukaGymEnv
+from pytorch_rl.kuka.custom_kuka_for_HER import KukaGymEnv
 import argparse
-from pytorch_rl.kuka.algorithm import DDPG
+from pytorch_rl.kuka.algorithm import DDPG_HER
 
 
 def main(args) :
     p.connect(p.SHARED_MEMORY)
 
-    env = kukaGymEnv.KukaGymEnv(renders=True, isEnableSelfCollision=True)
+    env = KukaGymEnv(renders=True, isEnableSelfCollision=True)
 
     action_dim = env.action_space.shape[0]
     state_dim = env.observation_space.shape[0]
+    goal_dim = env.goal_space
+    max_step = env._maxSteps        # max episode len
     print('action_dim : ', action_dim)
     print('state_dim : ', state_dim)
-    ddpg = DDPG(args, state_dim, action_dim)
+    ddpg = DDPG_HER(args, state_dim, action_dim, goal_dim, max_step)
     ddpg.kuka_train_loop(env)
 
 
@@ -22,7 +24,7 @@ if __name__ == '__main__' :
 
     parse.add_argument('--batch_size', default=200)
     parse.add_argument('--lr', default=0.003)
-    parse.add_argument('--epsilon_decay', default=0.99)
+    parse.add_argument('--epsilon_decay', default=0.01)
     parse.add_argument('--gamma', default=0.99)
     parse.add_argument('--target_replace_iter', default=100)
     parse.add_argument('--tau', default=0.001)

@@ -54,7 +54,7 @@ if __name__ == '__main__' :
     parse.add_argument('--model_save_iter', default=20, help='save model at every %d step')
     parse.add_argument('--continue_training', default=False,
                        help='Will you continue training using your saved model & memory')
-    parse.add_argument('--saved_iter', default=140, help='last saved model iteration number. ')
+    parse.add_argument('--saved_iter', default=50, help='last saved model iteration number. ')
     parse.add_argument('--save_directory', default='./save/')
     args = parse.parse_args()
 

@@ -1,7 +1,6 @@
-
 import gym
 import argparse
-from pytorch_rl.algorithms import DDPG
+from pytorch_rl.pendulum.algorithm import DDPG
 
 def main(args) :
     env = gym.make('Pendulum-v0')
@@ -15,7 +14,7 @@ def main(args) :
 if __name__ == '__main__' :
     parse = argparse.ArgumentParser()
 
-    parse.add_argument('--batch_size', default=512)
+    parse.add_argument('--batch_size', default=186)
     parse.add_argument('--lr', default=0.003)
     parse.add_argument('--epsilon_decay', default=0.9)
     parse.add_argument('--gamma', default=0.90)
@@ -25,11 +24,11 @@ if __name__ == '__main__' :
 
     parse.add_argument('--num_episode', default=10000)
     parse.add_argument('--ep_print_iter', default=1, help='print episode_reward at every %d step')
-    parse.add_argument('--model_save_iter', default=100, help='save model at every %d step')
+    parse.add_argument('--model_save_iter', default=40, help='save model at every %d step')
     parse.add_argument('--continue_training', default=False,
                        help='Will you continue training using your saved model & memory')
     parse.add_argument('--saved_iter', default=5, help='last saved model iteration number. ')
-    parse.add_argument('--save_directory', default='./pendulum/save/')
+    parse.add_argument('--save_directory', default='./save/')
     args = parse.parse_args()
 
     main(args)
