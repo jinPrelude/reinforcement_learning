@@ -1,6 +1,6 @@
-from pytorch_rl.ksp.hover import hover_v1
+from pytorch_rl.ksp_her.hover import hover_v1
 import argparse
-from pytorch_rl.ksp.algorithm import DDPG_HER
+from pytorch_rl.ksp_her.algorithm import DDPG_HER
 
 
 def main(args) :
