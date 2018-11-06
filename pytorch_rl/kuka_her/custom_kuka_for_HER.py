@@ -76,7 +76,7 @@ class KukaGymEnv(gym.Env):
         self.observation_space = spaces.Box(-observation_high, observation_high)
         self.viewer = None
 
-        # goal 의 크기입니다. 블럭의 x, y 좌표를 출력합니다.
+        # goal 의 크기입니다. 블럭의 x, y, z 좌표를 출력합니다.
         self.goal_space = 3
 
     def _reset(self):
