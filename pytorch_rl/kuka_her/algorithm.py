@@ -84,7 +84,7 @@ class DDPG_HER(object) :
         self.memory = np.zeros((self.args.memory_capacity, (self.state_space+self.goal_space) * 2 + self.action_space + self.goal_space + 1))  # initialize memory
         self.episode_memory_counter = 0  # for storing memory
         self.episode_memory = np.zeros((max_step,
-                                self.state_space * 2 + self.action_space + self.goal_space + 2 + 1))  # initialize memory
+                                self.state_space * 2 + self.action_space + self.goal_space*2 + 1))  # initialize memory
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=self.args.lr)
         self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=self.args.lr)
         self.loss_func = nn.MSELoss()
@@ -120,7 +120,7 @@ class DDPG_HER(object) :
         # transition = np.hstack((s, a, r, s_, g))
         # replace the old memory with new memory
         index = self.memory_counter % self.args.memory_capacity
-        for i in range(self.args.batch_size) :
+        for i in range(self.episode_memory_counter) :
             self.memory[index+i, :(self.state_space+self.goal_space)] = b_s[i]
             self.memory[index+i, (self.state_space+self.goal_space):(self.state_space+self.goal_space) + self.action_space] = b_a[i]
             self.memory[index+i, (self.state_space+self.goal_space) + self.action_space:(self.state_space+self.goal_space) + self.action_space+1] = b_r[i]
@@ -128,14 +128,14 @@ class DDPG_HER(object) :
             self.memory[index+i, -self.goal_space:] = b_g[i]
 
 
-        self.memory_counter += self.args.batch_size
+        self.memory_counter += self.episode_memory_counter
 
     # 임시 메모리에 저장하는 함수입니다.
     def episode_memory_store_transition(self, s, a, r, s_, g, gripper_pos):
         transition = np.hstack((s, a, r, s_, g, gripper_pos))
         # replace the old memory with new memory
-        index = self.episode_memory_counter % self.max_step
-        self.episode_memory[index, :] = transition
+        #index = self.episode_memory_counter % self.max_step
+        self.episode_memory[self.episode_memory_counter, :] = transition
         self.episode_memory_counter += 1
 
     # 메모리에서 미니배치 크기만큼 무작위로 가져오는 함수입니다.
@@ -152,7 +152,7 @@ class DDPG_HER(object) :
 
     # 임시 메모리에서 무작위로 가져오는 함수입니다.
     def batch_episode_memory(self):
-        index = np.arange(self.max_step)
+        index = np.arange(self.episode_memory_counter)
         np.random.shuffle(index)
         b_memory = self.episode_memory[index, :]
         b_s = torch.FloatTensor(b_memory[:, :self.state_space])
@@ -163,13 +163,25 @@ class DDPG_HER(object) :
             b_memory[:, self.state_space + self.action_space + 1:self.state_space * 2 + self.action_space + 1])
         b_g = torch.FloatTensor(b_memory[:, self.state_space * 2 + self.action_space + 1:
                                             self.state_space * 2 + self.action_space + 1 + self.goal_space])
-        b_gripper_pos = torch.FloatTensor(b_memory[:, -2:])
+        b_gripper_pos = torch.FloatTensor(b_memory[:, -self.goal_space:])
+
         return b_s, b_a, b_r, b_s_, b_g, b_gripper_pos
 
     # 논문에 나오는 r 함수.. 아직 구현을 하지 못했습니다..
     # reward shaping 을 어떻게 해야할까요..
     def r(self, gripper_pos, g):
-            pass
+        gripper_pos = np.float32(gripper_pos)
+        g = np.float32(g)  # 2개 타입이 달라서 값이 같아도 false 로 나오는 문제때문에
+        result = []
+        for i in range(self.episode_memory_counter) :
+            test1 = gripper_pos[i]
+            test2 = g[i]
+            test3 = (test1 == test2)      # 분명 같은데 왜 다르다고 나올까
+            if (gripper_pos[i] == g[i]).all() :
+                result.append(0)
+            else :
+                result.append(-1)
+        return np.asarray(result)
 
     def learn(self):    # target parameter update
         if self.learn_step_counter % self.args.target_replace_iter == 0:
@@ -209,6 +221,14 @@ class DDPG_HER(object) :
         self.soft_update(self.target_actor, self.actor, self.args.tau)
         self.soft_update(self.target_critic, self.critic, self.args.tau)
 
+    def test_episode(self, env):
+        while True :
+            a = np.zeros(self.action_space)
+            _, _, done, _, _ = env.step(a)
+            if done :
+                print('test episode finished')
+                break
+
     def kuka_train_loop(self, env):
 
         start = 0
@@ -216,11 +236,12 @@ class DDPG_HER(object) :
         if self.args.continue_training :
             self.continue_training()
 
+        # self.test_episode(env)
         print('\nCollecting experience...')
         for i_episode in range(start, self.args.num_episode):
             s, g = env.reset()
             ep_r = 0
-
+            episode_len = 0
             if self.memory_counter > self.args.batch_size: # decay epsilon at every episode
                 self.epsilon *= self.args.epsilon_decay
 
@@ -235,18 +256,6 @@ class DDPG_HER(object) :
                 # take action
                 # 액션을 취해줍니다.
                 s_, r, done, gripper_pos, info = env.step(a)
-
-                # s_g = np.concatenate((s_, g), axis=0)
-
-
-                r = self.r(gripper_pos, g)
-
-                # 임시 메모리입니다! 에피소드를 끝내고 r 함수로 에피소드의 리워드들을 다시 shaping 해주고 메모리에 저장하는
-                # 작업을 위해 잠시 저장해놓는 공간입니다!
-                self.episode_memory_store_transition(s, a, r, s_, g, gripper_pos)
-
-
-                ep_r += r
 
                 if done:
 
@@ -265,7 +274,15 @@ class DDPG_HER(object) :
                             np.save(directory + 'memory_%d' % (i_episode), self.memory)
                     break
 
+                # 임시 메모리입니다! 에피소드를 끝내고 r 함수로 에피소드의 리워드들을 다시 shaping 해주고 메모리에 저장하는
+                # 작업을 위해 잠시 저장해놓는 공간입니다!
+                self.episode_memory_store_transition(s, a, r, s_, g, gripper_pos)
+                episode_len += 1
+
+                s_T = gripper_pos
+                ep_r += r
                 s = s_
+
 
             # 임시 메모리에서 순서 무작위로 불러왔습니다!
             b_s, b_a, b_r, b_s_, b_g, b_gripper_pos = self.batch_episode_memory()
@@ -282,15 +299,20 @@ class DDPG_HER(object) :
             self.batch_store_transition(b_sg, b_a, b_r, b_s_g, b_g)
 
             # 논문 pseudo 코드에서 "Sample a set of additional goals for replay G := S(current episode)" 에 해당하는 부분입니다!
-            _, _, _, _, _, b_gripper_pos_2 = self.batch_episode_memory()
-            b_g_ = b_gripper_pos_2         # b_a 에 의한 gripper의 위치이니까 future 방식이라고 생각하고 만들었습니다
+            # _, _, _, _, _, b_gripper_pos_2 = self.batch_episode_memory(episode_len)
+            b_g_ = np.asarray([s_T for _ in range(self.episode_memory_counter)])      # final strategy
 
             # her 부분입니다! 바뀐 goal 에 대해서 다시 reward shaping을 해주고
             # state와 goal 을 함쳐준 다음 메모리에 저장합니다.
-            b_r_ = self.r(b_gripper_pos.detach().numpy(), b_g_.detach().numpy())
+
+            # no r function defined
+            b_r_ = self.r(b_gripper_pos.detach().numpy(), b_g_)
             b_sg_ = np.concatenate((b_s, b_g_), axis=1)
             b_s_g_ = np.concatenate((b_s_, b_g_), axis=1)
-            self.batch_store_transition(b_sg, b_a, b_r_, b_s_g, b_g_)
+
+            # NOTE : fix b_r to b_r_ if function r is ready
+            self.batch_store_transition(b_sg_, b_a, b_r_, b_s_g_, b_g_)
+            self.episode_memory_counter = 0
 
             for _ in range(100) :
 
