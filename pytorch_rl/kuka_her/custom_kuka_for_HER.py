@@ -77,7 +77,7 @@ class KukaGymEnv(gym.Env):
         self.viewer = None
 
         # goal 의 크기입니다. 블럭의 x, y 좌표를 출력합니다.
-        self.goal_space = 2
+        self.goal_space = 3
 
     def _reset(self):
         # print("KukaGymEnv _reset")
@@ -147,14 +147,14 @@ class KukaGymEnv(gym.Env):
     # 블럭의 좌표를 리턴해주는 함수입니다.
     def get_block_pos(self):
         blockpos, _ = p.getBasePositionAndOrientation(self.blockUid)
-        blockpos = [blockpos[0], blockpos[1]]
+        blockpos = np.asarray(blockpos)
         return np.round(blockpos, 3)
 
     # gripper(로봇의 손) 의 좌표를 리턴해주는 함수입니다.
     def get_gripper_pos(self):
         gripper_pos = p.getLinkState(self._kuka.kukaUid, self._kuka.kukaGripperIndex)[0]
-        gripper_pos = list((gripper_pos[0], gripper_pos[1]))
-        return gripper_pos
+        gripper_pos = np.asarray(gripper_pos)
+        return np.round(gripper_pos, 3)
 
 
     def _step(self, action):
