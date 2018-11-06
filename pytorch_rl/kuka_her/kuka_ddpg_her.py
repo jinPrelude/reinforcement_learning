@@ -1,7 +1,7 @@
 import pybullet as p
-from pytorch_rl.kuka.custom_kuka_for_HER import KukaGymEnv
+from pytorch_rl.kuka_her.custom_kuka_for_HER import KukaGymEnv
 import argparse
-from pytorch_rl.kuka.algorithm import DDPG_HER
+from pytorch_rl.kuka_her.algorithm import DDPG_HER
 
 
 def main(args) :
