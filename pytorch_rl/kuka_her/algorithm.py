@@ -119,7 +119,7 @@ class DDPG_HER(object) :
     def batch_store_transition(self, b_s, b_a, b_r, b_s_, b_g):
         # transition = np.hstack((s, a, r, s_, g))
         # replace the old memory with new memory
-        index = self.memory_counter % self.args.memory_capacity
+        index = self.memory_counter % self.episode_memory_counter
         for i in range(self.episode_memory_counter) :
             self.memory[index+i, :(self.state_space+self.goal_space)] = b_s[i]
             self.memory[index+i, (self.state_space+self.goal_space):(self.state_space+self.goal_space) + self.action_space] = b_a[i]
