@@ -31,6 +31,7 @@ class HRL() :
             # store experience(s_0, s_c, sum(r), g)
             # re_label g_bar
             # train
+            
         pass
 
     def trainable(self):
